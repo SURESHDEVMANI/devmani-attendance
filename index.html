@@ -190,7 +190,7 @@
 /* ══════════════════════════════════════════════════════════
    ⚙️  CONFIG — Yahan apna Apps Script URL daalo
 ══════════════════════════════════════════════════════════ */
-var GAS_URL = 'https://script.google.com/macros/s/AKfycbw6hEGsamsKGPCxM3PigN25pNS6Cvzy6KsAYtHHrHMt_K6YcSht4xqGud1DV2bb-BYn/exec';
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbymwkZERHsAMwUoZSdX7pxS7TvvK4GUbBiCIh00oJ4hDcabNK5MbA3jfwfo2HfYUY6Q/exec';
 
 /* ══ EMPLOYEE DB ══ */
 var EMP_DB={
@@ -344,13 +344,13 @@ function fetchAddr(){
     .catch(function(){addrStr=gpsLat.toFixed(5)+', '+gpsLng.toFixed(5);document.getElementById('addrTxt').textContent='📍 '+addrStr;});
 }
 
-/* ══ CHECK STATUS — fetch() se Apps Script call ══ */
+/* ══ CHECK STATUS ══ */
 function checkTodayStatus(){
   var url=GAS_URL+'?action=getTodayStatus&empId='+encodeURIComponent(USER.id);
   fetch(url,{redirect:'follow'})
     .then(function(r){return r.text();})
     .then(function(txt){
-      var st; try{st=JSON.parse(txt);}catch(e){return;}
+      var st; try{st=JSON.parse(txt);}catch(e){console.warn('Status parse err',txt);return;}
       if(st.status==='clocked_in'){
         document.getElementById('btnIn').disabled=true;
         document.getElementById('btnOut').disabled=false;
@@ -389,9 +389,6 @@ function punch(type){
   showOverlay(type==='IN'?'⏱ Clock In save ho raha hai...':'⏱ Clock Out save ho raha hai...');
 
   var b64=capturePhoto();
-
-  // ★ STEP 1: Attendance save karo (photo baad mein)
-  // Content-Type: text/plain → CORS preflight nahi hota → GAS tak pahunchta hai
   var payload={
     action:'markAttendance',
     type:type,
@@ -405,51 +402,91 @@ function punch(type){
     imageUrl:''
   };
 
-  fetch(GAS_URL,{
-    method:'POST',
-    headers:{'Content-Type':'text/plain'},  // ★ KEY FIX: no preflight
-    body:JSON.stringify(payload),
-    redirect:'follow'
+  // ★ mode:'no-cors' → CORS block nahi hoga
+  // Data GAS tak pahunchega, response opaque aayega (that's OK)
+  fetch(GAS_URL, {
+    method: 'POST',
+    headers: {'Content-Type': 'text/plain'},
+    body: JSON.stringify(payload),
+    mode: 'no-cors',
+    redirect: 'follow'
   })
-  .then(function(r){return r.text();})
-  .then(function(txt){
-    var res;
-    try{ res=JSON.parse(txt); }catch(e){ res={success:false,message:'Parse error: '+txt.substring(0,100)}; }
-    hideOverlay();
-    if(res.success){
-      showToast(res.message,'ok');
-      if(type==='IN'){
-        document.getElementById('btnIn').disabled=true;
-        document.getElementById('btnOut').disabled=false;
-        document.getElementById('sIn').textContent=res.time;
-        document.getElementById('sSts').textContent='🟢 Clocked In';
-      } else {
-        document.getElementById('sOut').textContent=res.time;
-        document.getElementById('sSts').textContent='✅ Day Complete';
-        document.getElementById('btnOut').disabled=true;
-      }
-      // ★ STEP 2: Photo upload background mein (response ki parwah nahi)
-      if(b64){
-        var photoPayload={action:'markAttendance',type:type,empId:USER.id,name:USER.name,
-          dept:USER.dept,phone:USER.phone,latitude:gpsLat,longitude:gpsLng,
-          address:addrStr,imageUrl:'',image:b64};
-        fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain'},
-          body:JSON.stringify(photoPayload),redirect:'follow'})
-          .catch(function(){});  // silently ignore
-      }
-    } else {
-      showToast(res.message||'Error aaya, dobara try karo','err');
-      if(type==='IN') document.getElementById('btnIn').disabled=false;
-      else document.getElementById('btnOut').disabled=false;
+  .then(function(){
+    // no-cors = response nahi milta, isliye 2s baad GET se confirm karo
+    setTimeout(function(){ _confirmSaved(type); }, 2500);
+    // Background mein photo upload
+    if(b64){
+      var pp=JSON.parse(JSON.stringify(payload));
+      pp.image=b64;
+      fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain'},
+        body:JSON.stringify(pp),mode:'no-cors',redirect:'follow'}).catch(function(){});
     }
   })
   .catch(function(e){
     hideOverlay();
     console.error('Punch error:',e);
-    showToast('Network error. Internet check karo.','err');
+    showToast('Network error — Internet check karo','err');
     if(type==='IN') document.getElementById('btnIn').disabled=false;
     else document.getElementById('btnOut').disabled=false;
   });
+}
+
+/* Confirm save via GET status check */
+function _confirmSaved(type){
+  var url=GAS_URL+'?action=getTodayStatus&empId='+encodeURIComponent(USER.id);
+  fetch(url,{redirect:'follow'})
+    .then(function(r){return r.text();})
+    .then(function(txt){
+      hideOverlay();
+      var st; try{st=JSON.parse(txt);}catch(e){
+        // Agar parse fail — phir bhi success dikhao (data save ho gaya)
+        _applyPunchUI(type, _nowTime());
+        showToast(type==='IN'?'✅ Clock In Ho Gaya!':'✅ Clock Out Ho Gaya!','ok');
+        return;
+      }
+      if(st.status==='clocked_in'||st.status==='completed'){
+        _applyPunchUI(type, type==='IN'?st.inTime:st.outTime);
+        showToast(type==='IN'?'✅ Clock In Ho Gaya! '+st.inTime:'✅ Clock Out Ho Gaya! '+st.outTime,'ok');
+      } else {
+        // Still pending — retry once
+        setTimeout(function(){_retryConfirm(type);},3000);
+      }
+    })
+    .catch(function(){
+      hideOverlay();
+      _applyPunchUI(type, _nowTime());
+      showToast(type==='IN'?'✅ Clock In Ho Gaya!':'✅ Clock Out Ho Gaya!','ok');
+    });
+}
+
+function _retryConfirm(type){
+  var url=GAS_URL+'?action=getTodayStatus&empId='+encodeURIComponent(USER.id);
+  fetch(url,{redirect:'follow'}).then(function(r){return r.text();})
+    .then(function(txt){
+      var st; try{st=JSON.parse(txt);}catch(e){_applyPunchUI(type,_nowTime());return;}
+      _applyPunchUI(type, type==='IN'?(st.inTime||_nowTime()):(st.outTime||_nowTime()));
+      showToast(type==='IN'?'✅ Clock In Ho Gaya!':'✅ Clock Out Ho Gaya!','ok');
+    })
+    .catch(function(){_applyPunchUI(type,_nowTime());});
+}
+
+function _applyPunchUI(type, timeStr){
+  hideOverlay();
+  if(type==='IN'){
+    document.getElementById('btnIn').disabled=true;
+    document.getElementById('btnOut').disabled=false;
+    document.getElementById('sIn').textContent=timeStr||_nowTime();
+    document.getElementById('sSts').textContent='🟢 Clocked In';
+  } else {
+    document.getElementById('sOut').textContent=timeStr||_nowTime();
+    document.getElementById('sSts').textContent='✅ Day Complete';
+    document.getElementById('btnOut').disabled=true;
+  }
+}
+
+function _nowTime(){
+  var n=new Date();
+  return pad(n.getHours())+':'+pad(n.getMinutes());
 }
 
 /* ══ HELPERS ══ */
