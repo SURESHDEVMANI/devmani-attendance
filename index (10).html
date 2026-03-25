@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Devmani Attendance</title>
+  <style>
+    *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+    :root{--navy:#0d1b2e;--navy2:#162236;--navy3:#1e3050;--gold:#c9a84c;--gold2:#e8c96d;--bg:#e8ecf0;--white:#fff;}
+    body{font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);min-height:100vh;}
+
+    .topbar{background:var(--navy);height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;box-shadow:0 2px 8px rgba(0,0,0,.4);position:sticky;top:0;z-index:20;}
+    .tb-left{display:flex;align-items:center;gap:10px;}
+    .tb-logo{width:34px;height:34px;border-radius:7px;background:var(--white);padding:3px;object-fit:contain;}
+    .tb-title{color:var(--white);font-size:14px;font-weight:800;}
+    .tb-sub{color:var(--gold);font-size:10px;}
+    .tb-time{color:var(--gold);font-size:17px;font-weight:700;text-align:right;}
+    .tb-date{color:rgba(255,255,255,.55);font-size:10px;text-align:right;}
+
+    #loginScreen{display:flex;align-items:center;justify-content:center;min-height:calc(100vh - 52px);padding:16px;}
+    #appScreen{display:none;}
+
+    .login-card{width:100%;max-width:360px;background:var(--navy2);border-radius:20px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.3);}
+    .login-hero{background:linear-gradient(160deg,var(--navy),var(--navy3));padding:32px 24px 24px;text-align:center;border-bottom:2px solid var(--gold);}
+    .login-hero img{width:76px;height:76px;border-radius:14px;background:var(--white);padding:6px;object-fit:contain;margin-bottom:12px;box-shadow:0 4px 16px rgba(0,0,0,.3);}
+    .login-hero h1{color:var(--white);font-size:20px;font-weight:800;letter-spacing:.5px;}
+    .login-hero p{color:var(--gold);font-size:11px;margin-top:3px;letter-spacing:1px;}
+    .login-body{padding:24px 20px 20px;}
+    .field-label{font-size:10px;font-weight:700;letter-spacing:1.5px;color:var(--gold);margin-bottom:8px;display:block;}
+    .id-wrap{position:relative;}
+    .id-inp{width:100%;padding:13px 52px 13px 14px;background:var(--navy3);border:1.5px solid rgba(201,168,76,.3);border-radius:12px;color:var(--white);font-size:17px;font-weight:700;letter-spacing:2px;outline:none;transition:.2s;}
+    .id-inp::placeholder{color:rgba(255,255,255,.25);font-weight:400;font-size:13px;letter-spacing:1px;}
+    .id-inp:focus{border-color:var(--gold);}
+    .btn-search{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:38px;height:38px;border-radius:9px;background:var(--gold);border:none;cursor:pointer;font-size:17px;display:flex;align-items:center;justify-content:center;}
+    .emp-confirm{display:none;margin-top:14px;background:var(--navy3);border-radius:12px;padding:14px;border:1.5px solid rgba(201,168,76,.35);}
+    .emp-confirm.show{display:block;}
+    .emp-row{display:flex;align-items:center;gap:12px;margin-bottom:12px;}
+    .emp-av{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--navy));display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:var(--white);flex-shrink:0;}
+    .emp-name{color:var(--white);font-size:15px;font-weight:700;}
+    .emp-meta{color:var(--gold);font-size:11px;margin-top:2px;}
+    .btn-confirm{width:100%;padding:13px;background:var(--gold);color:var(--navy);border:none;border-radius:10px;font-size:13px;font-weight:800;letter-spacing:1px;cursor:pointer;}
+    .err-msg{color:#ef5350;font-size:12px;text-align:center;margin-top:10px;font-weight:600;display:none;}
+    .login-footer{text-align:center;font-size:10px;color:rgba(255,255,255,.3);margin-top:16px;letter-spacing:1px;}
+
+    .app-wrap{max-width:440px;margin:0 auto;padding:14px 12px 40px;}
+    .welcome-card{background:linear-gradient(135deg,var(--navy),var(--navy3));border-radius:14px;padding:14px 16px;margin-bottom:12px;border-bottom:3px solid var(--gold);display:flex;align-items:center;gap:12px;}
+    .w-av{width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--navy));display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:var(--white);flex-shrink:0;}
+    .w-sub{color:var(--gold);font-size:10px;letter-spacing:1.5px;font-weight:700;}
+    .w-name{color:var(--white);font-size:18px;font-weight:800;margin:2px 0;}
+    .w-dept{color:rgba(255,255,255,.6);font-size:11px;}
+    .btn-logout-app{margin-left:auto;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:var(--white);padding:7px 12px;border-radius:18px;font-size:11px;font-weight:600;cursor:pointer;flex-shrink:0;}
+
+    .cam-box{position:relative;border-radius:14px;overflow:hidden;background:var(--navy);aspect-ratio:4/3;margin-bottom:10px;box-shadow:0 4px 20px rgba(0,0,0,.3);}
+    #videoEl{width:100%;height:100%;object-fit:cover;display:block;}
+    #canvas{display:none;}
+
+    .cam-loading{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:var(--navy);color:rgba(255,255,255,.6);font-size:12px;}
+    .cam-spinner{width:32px;height:32px;border:3px solid rgba(201,168,76,.3);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;}
+
+    .cam-permission{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:var(--navy);color:var(--white);padding:16px;text-align:center;}
+    .cam-permission .cam-icon{font-size:44px;}
+    .cam-permission .cam-text{font-size:12px;color:rgba(255,255,255,.7);line-height:1.5;}
+    .btn-allow-cam{background:var(--gold);color:var(--navy);border:none;padding:10px 24px;border-radius:20px;font-size:13px;font-weight:800;cursor:pointer;}
+
+    .cam-overlay{position:absolute;inset:0;pointer-events:none;background:linear-gradient(to bottom,transparent 70%,rgba(0,0,0,.4));}
+    .gps-badge{position:absolute;bottom:10px;left:10px;background:rgba(13,27,46,.7);color:var(--white);padding:5px 11px;border-radius:18px;font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px;backdrop-filter:blur(4px);}
+    .dot{width:8px;height:8px;border-radius:50%;background:var(--gold);flex-shrink:0;}
+    .dot.ok{background:#4CAF50;}
+    .dot.pulse{animation:pulse 1s infinite;}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+    .time-badge{position:absolute;bottom:10px;right:10px;background:rgba(13,27,46,.7);color:var(--gold);padding:5px 11px;border-radius:18px;font-size:11px;font-weight:700;backdrop-filter:blur(4px);}
+
+    .addr{font-size:11px;color:#607d8b;text-align:center;padding:0 8px;margin-bottom:12px;min-height:15px;line-height:1.5;}
+
+    .btn-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+    .btn-punch{padding:20px 8px;border:none;border-radius:14px;font-size:13px;font-weight:800;letter-spacing:1px;cursor:pointer;transition:.15s;display:flex;flex-direction:column;align-items:center;gap:7px;}
+    .btn-punch:active:not(:disabled){transform:scale(.95);}
+    .btn-punch:disabled{opacity:.35;cursor:not-allowed;}
+    .btn-punch .ico{font-size:26px;}
+    .btn-in{background:linear-gradient(135deg,#2e7d32,#43a047);color:#fff;box-shadow:0 4px 14px rgba(46,125,50,.4);}
+    .btn-out{background:linear-gradient(135deg,#c62828,#e53935);color:#fff;box-shadow:0 4px 14px rgba(198,40,40,.4);}
+
+    .status-card{background:var(--white);border-radius:12px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.07);margin-bottom:10px;}
+    .status-hdr{background:var(--navy);color:var(--gold);padding:9px 16px;font-size:10px;font-weight:700;letter-spacing:1.5px;}
+    .srow{display:flex;justify-content:space-between;align-items:center;padding:11px 16px;border-bottom:1px solid #f0f0f0;}
+    .srow:last-child{border-bottom:none;}
+    .slbl{color:#9e9e9e;font-size:12px;}
+    .sval{font-weight:700;color:#212121;font-size:13px;}
+
+    .overlay{display:none;position:fixed;inset:0;background:rgba(13,27,46,.75);z-index:50;align-items:center;justify-content:center;flex-direction:column;gap:14px;color:var(--white);font-size:14px;font-weight:600;}
+    .overlay.show{display:flex;}
+    .spinner{width:46px;height:46px;border:4px solid rgba(201,168,76,.3);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);padding:12px 26px;border-radius:26px;font-size:13px;font-weight:600;color:#fff;opacity:0;transition:.3s;z-index:100;pointer-events:none;text-align:center;max-width:90vw;}
+    .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+    .toast.ok{background:#2e7d32;}
+    .toast.err{background:#c62828;}
+  </style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="tb-left">
+    <img class="tb-logo" src="https://drive.google.com/thumbnail?id=1dfiDT-qZe1-XxSDxTssX9myH6GhE7sa7&sz=w200" alt="">
+    <div><div class="tb-title">Devmani Attendance</div><div class="tb-sub">Warehouse Management System</div></div>
+  </div>
+  <div><div class="tb-time" id="tbTime">--:--</div><div class="tb-date" id="tbDate">--</div></div>
+</div>
+
+<!-- LOGIN SCREEN -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-hero">
+      <img src="https://drive.google.com/thumbnail?id=1dfiDT-qZe1-XxSDxTssX9myH6GhE7sa7&sz=w200" alt="">
+      <h1>Devmani Warehouse</h1>
+      <p>Welcome to Attendance System</p>
+    </div>
+    <div class="login-body">
+      <label class="field-label">EMPLOYEE ID</label>
+      <div class="id-wrap">
+        <input id="empIdInp" class="id-inp" type="text" placeholder="E.G. DW001" autocomplete="off"
+          oninput="this.value=this.value.toUpperCase()" onkeypress="if(event.key==='Enter')searchEmp()">
+        <button class="btn-search" onclick="searchEmp()">🔍</button>
+      </div>
+      <div class="emp-confirm" id="empConfirm">
+        <div class="emp-row">
+          <div class="emp-av" id="empAv">?</div>
+          <div><div class="emp-name" id="empNm">--</div><div class="emp-meta" id="empMeta">--</div></div>
+        </div>
+        <button class="btn-confirm" onclick="confirmLogin()">✅ &nbsp;Confirm & Continue</button>
+      </div>
+      <div class="err-msg" id="errMsg"></div>
+      <div class="login-footer">DEVMANI WAREHOUSE · HISAR, HARYANA</div>
+    </div>
+  </div>
+</div>
+
+<!-- APP SCREEN -->
+<div id="appScreen">
+  <div class="app-wrap">
+    <div class="welcome-card">
+      <div class="w-av" id="wAv">?</div>
+      <div>
+        <div class="w-sub">WELCOME BACK</div>
+        <div class="w-name" id="wName">--</div>
+        <div class="w-dept" id="wDept">--</div>
+      </div>
+      <button class="btn-logout-app" onclick="doLogout()">⬅ Logout</button>
+    </div>
+
+    <div class="cam-box">
+      <video id="videoEl" autoplay playsinline muted></video>
+      <div class="cam-loading" id="camLoading">
+        <div class="cam-spinner"></div>
+        <div>Camera shuru ho rahi hai...</div>
+      </div>
+      <div class="cam-permission" id="camPerm">
+        <div class="cam-icon">📷</div>
+        <div style="color:var(--white);font-weight:700;font-size:14px;">Camera Error</div>
+        <div class="cam-text" id="camPermText">Camera allow karo</div>
+        <button class="btn-allow-cam" onclick="startCamera()">Retry</button>
+      </div>
+      <div class="cam-overlay"></div>
+      <div class="gps-badge"><div class="dot pulse" id="gpsDot"></div><span id="gpsLbl">GPS: Locating...</span></div>
+      <div class="time-badge" id="camTime">--:--:--</div>
+    </div>
+    <canvas id="canvas"></canvas>
+    <div class="addr" id="addrTxt">📍 Fetching location...</div>
+
+    <div class="btn-row">
+      <button class="btn-punch btn-in"  id="btnIn"  onclick="punch('IN')"><span class="ico">🟢</span>CLOCK IN</button>
+      <button class="btn-punch btn-out" id="btnOut" onclick="punch('OUT')" disabled><span class="ico">🔴</span>CLOCK OUT</button>
+    </div>
+
+    <div class="status-card">
+      <div class="status-hdr">TODAY'S ATTENDANCE</div>
+      <div class="srow"><span class="slbl">Clock In</span> <span class="sval" id="sIn">--:--</span></div>
+      <div class="srow"><span class="slbl">Clock Out</span><span class="sval" id="sOut">--:--</span></div>
+      <div class="srow"><span class="slbl">Status</span>   <span class="sval" id="sSts">Not Marked</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay"><div class="spinner"></div><div id="overlayMsg">Saving...</div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ══════════════════════════════════════════════════════════
+   ⚙️  CONFIG — Yahan apna Apps Script URL daalo
+══════════════════════════════════════════════════════════ */
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbw6hEGsamsKGPCxM3PigN25pNS6Cvzy6KsAYtHHrHMt_K6YcSht4xqGud1DV2bb-BYn/exec';
+
+/* ══ EMPLOYEE DB ══ */
+var EMP_DB={
+  'DW001':{name:'SURENDRA JANGRA',dept:'Administrator',phone:'9817954151'},
+  'DW002':{name:'SURESH KUMAR',dept:'MIS',phone:'8306550583'},
+  'DW003':{name:'KULMEET SINGH',dept:'Manager',phone:'9812300984'},
+  'DW004':{name:'SANDEEP SAINI',dept:'Manager',phone:'9518648499'},
+  'DW005':{name:'PRADEEP DUDI',dept:'Billing',phone:'9992051031'},
+  'DW006':{name:'SOURABH JAIN',dept:'Accounts',phone:'8607290798'},
+  'DW007':{name:'SAJJAN SHARMA',dept:'Dispatch',phone:'9466262761'},
+  'DW008':{name:'RAJNISH KUMAR',dept:'Dispatch',phone:'9813081821'},
+  'DW009':{name:'NARENDER KUMAR',dept:'Driving',phone:'8168566571'},
+  'DW010':{name:'PARVEEN KUMAR DR',dept:'Driving',phone:''},
+  'DW011':{name:'SANJAY DABLA',dept:'Driving',phone:'9468240472'},
+  'DW012':{name:'RAJU',dept:'Loading/Unloading',phone:''},
+  'DW013':{name:'KULDEEP',dept:'Loading/Unloading',phone:''},
+  'DW014':{name:'LILA RAM',dept:'Loading/Unloading',phone:'9992972864'},
+  'DW015':{name:'ANIL KUMAR',dept:'Claim',phone:'8059765900'},
+  'DW016':{name:'PARVEEN KUMAR',dept:'Loading/Unloading',phone:''},
+  'DW017':{name:'RAM DAS',dept:'Claim',phone:'8683895328'},
+  'DW018':{name:'RAJBIR SINGH',dept:'Loading/Unloading',phone:'8199899718'},
+  'DW019':{name:'ASHOK KUMAR',dept:'Security',phone:''},
+  'DW020':{name:'SUNIL KUMAR',dept:'Security',phone:''},
+  'DW021':{name:'VICKY',dept:'Security',phone:''},
+  'DW022':{name:'MAMTA',dept:'Housekeeping',phone:''}
+};
+
+/* ══ STATE ══ */
+var USER={id:'',name:'',dept:'',phone:''};
+var gpsLat=null,gpsLng=null,gpsOk=false,addrStr='';
+var camStream=null,camActive=false;
+
+/* ══ CLOCK ══ */
+var DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],MONS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function pad(x){return String(x).padStart(2,'0');}
+(function tick(){
+  var n=new Date();
+  document.getElementById('tbTime').textContent=pad(n.getHours())+':'+pad(n.getMinutes());
+  document.getElementById('tbDate').textContent=DAYS[n.getDay()]+', '+n.getDate()+' '+MONS[n.getMonth()];
+  var ct=document.getElementById('camTime');
+  if(ct) ct.textContent=pad(n.getHours())+':'+pad(n.getMinutes())+':'+pad(n.getSeconds());
+  setTimeout(tick,1000);
+})();
+
+/* ══ LOGIN ══ */
+document.getElementById('empIdInp').addEventListener('keypress',function(e){if(e.key==='Enter')searchEmp();});
+function searchEmp(){
+  var id=document.getElementById('empIdInp').value.trim().toUpperCase();
+  var err=document.getElementById('errMsg');
+  var box=document.getElementById('empConfirm');
+  err.style.display='none'; box.classList.remove('show');
+  if(!id){showErrL('Employee ID daalo');return;}
+  var emp=EMP_DB[id];
+  if(!emp){showErrL('❌ "'+id+'" not found');return;}
+  var ini=emp.name.split(' ').map(function(w){return w[0];}).slice(0,2).join('');
+  document.getElementById('empAv').textContent=ini;
+  document.getElementById('empNm').textContent=emp.name;
+  document.getElementById('empMeta').textContent=id+' · '+emp.dept+(emp.phone?' · '+emp.phone:'');
+  box.classList.add('show');
+}
+function showErrL(m){var el=document.getElementById('errMsg');el.textContent=m;el.style.display='block';}
+function confirmLogin(){
+  var id=document.getElementById('empIdInp').value.trim().toUpperCase();
+  var emp=EMP_DB[id]; if(!emp) return;
+  USER={id:id,name:emp.name,dept:emp.dept,phone:emp.phone};
+  showApp();
+}
+function showApp(){
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('appScreen').style.display='block';
+  var ini=USER.name.split(' ').map(function(w){return w[0];}).slice(0,2).join('');
+  document.getElementById('wAv').textContent=ini;
+  document.getElementById('wName').textContent=USER.name;
+  document.getElementById('wDept').textContent=USER.dept+' · '+USER.id;
+  startCamera();
+  startGPS();
+  checkTodayStatus();
+}
+function doLogout(){
+  if(camStream){camStream.getTracks().forEach(function(t){t.stop();});camStream=null;camActive=false;}
+  document.getElementById('appScreen').style.display='none';
+  document.getElementById('loginScreen').style.display='flex';
+  document.getElementById('empIdInp').value='';
+  document.getElementById('empConfirm').classList.remove('show');
+  document.getElementById('errMsg').style.display='none';
+  document.getElementById('camLoading').style.display='flex';
+  document.getElementById('camPerm').style.display='none';
+  document.getElementById('videoEl').srcObject=null;
+  gpsOk=false;gpsLat=null;gpsLng=null;addrStr='';
+  document.getElementById('gpsDot').className='dot pulse';
+  document.getElementById('gpsLbl').textContent='GPS: Locating...';
+  document.getElementById('addrTxt').textContent='📍 Fetching location...';
+  document.getElementById('sIn').textContent='--:--';
+  document.getElementById('sOut').textContent='--:--';
+  document.getElementById('sSts').textContent='Not Marked';
+  document.getElementById('btnIn').disabled=false;
+  document.getElementById('btnOut').disabled=true;
+}
+
+/* ══ CAMERA ══ */
+function startCamera(){
+  camActive=false;
+  document.getElementById('camPerm').style.display='none';
+  document.getElementById('camLoading').style.display='flex';
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    showCamError('Camera is not supported on this browser.');return;
+  }
+  navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}},audio:false})
+  .then(function(stream){
+    camStream=stream; camActive=true;
+    var v=document.getElementById('videoEl');
+    v.srcObject=stream;
+    v.onloadedmetadata=function(){
+      document.getElementById('camLoading').style.display='none';
+      document.getElementById('camPerm').style.display='none';
+    };
+    setTimeout(function(){document.getElementById('camLoading').style.display='none';},1500);
+  })
+  .catch(function(err){
+    console.warn('Camera:',err.name,err.message);
+    var msg=err.name==='NotAllowedError'
+      ?'Camera permission denied.\nBrowser mein camera allow karo phir Retry karo.'
+      :'Camera error: '+err.message;
+    showCamError(msg);
+  });
+}
+function showCamError(msg){
+  document.getElementById('camLoading').style.display='none';
+  document.getElementById('camPermText').innerHTML=msg.replace(/\n/g,'<br>');
+  document.getElementById('camPerm').style.display='flex';
+}
+
+/* ══ GPS ══ */
+function startGPS(){
+  if(!navigator.geolocation){document.getElementById('gpsLbl').textContent='GPS: N/A';return;}
+  navigator.geolocation.watchPosition(
+    function(pos){
+      gpsLat=pos.coords.latitude;gpsLng=pos.coords.longitude;
+      var d=document.getElementById('gpsDot');d.classList.remove('pulse');d.classList.add('ok');
+      document.getElementById('gpsLbl').textContent='GPS: FIXED';
+      if(!gpsOk){gpsOk=true;fetchAddr();}
+    },
+    function(){document.getElementById('gpsLbl').textContent='GPS: Error';addrStr='Location unavailable';document.getElementById('addrTxt').textContent='📍 '+addrStr;},
+    {enableHighAccuracy:true}
+  );
+}
+function fetchAddr(){
+  fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat='+gpsLat+'&lon='+gpsLng)
+    .then(function(r){return r.json();})
+    .then(function(d){addrStr=d.display_name||(gpsLat.toFixed(5)+', '+gpsLng.toFixed(5));document.getElementById('addrTxt').textContent='📍 '+addrStr;})
+    .catch(function(){addrStr=gpsLat.toFixed(5)+', '+gpsLng.toFixed(5);document.getElementById('addrTxt').textContent='📍 '+addrStr;});
+}
+
+/* ══ CHECK STATUS — fetch() se Apps Script call ══ */
+function checkTodayStatus(){
+  var url=GAS_URL+'?action=getTodayStatus&empId='+encodeURIComponent(USER.id);
+  fetch(url)
+    .then(function(r){return r.json();})
+    .then(function(st){
+      if(st.status==='clocked_in'){
+        document.getElementById('btnIn').disabled=true;
+        document.getElementById('btnOut').disabled=false;
+        document.getElementById('sIn').textContent=st.inTime;
+        document.getElementById('sSts').textContent='🟢 Clocked In';
+      } else if(st.status==='completed'){
+        document.getElementById('btnIn').disabled=true;
+        document.getElementById('btnOut').disabled=true;
+        document.getElementById('sIn').textContent=st.inTime;
+        document.getElementById('sOut').textContent=st.outTime;
+        document.getElementById('sSts').textContent='✅ Day Complete';
+      }
+    })
+    .catch(function(e){console.warn('Status check failed:',e);});
+}
+
+/* ══ PHOTO CAPTURE ══ */
+function capturePhoto(){
+  var v=document.getElementById('videoEl');
+  var c=document.getElementById('canvas');
+  c.width=480;c.height=360;
+  var ctx=c.getContext('2d');
+  if(camActive&&v.readyState>=2) ctx.drawImage(v,0,0,480,360);
+  else{ctx.fillStyle='#0d1b2e';ctx.fillRect(0,0,480,360);}
+  ctx.fillStyle='rgba(0,0,0,.65)';ctx.fillRect(0,328,480,32);
+  ctx.fillStyle='#c9a84c';ctx.font='bold 11px Arial';
+  ctx.fillText(USER.name+' | '+USER.id+' | '+new Date().toLocaleString('en-IN'),6,346);
+  return c.toDataURL('image/jpeg',0.6).replace('data:image/jpeg;base64,','');
+}
+
+/* ══ PUNCH — fetch() se Apps Script call ══ */
+function punch(type){
+  if(!gpsOk){showToast('📍 GPS fix hone do...','err');return;}
+  document.getElementById('btnIn').disabled=true;
+  document.getElementById('btnOut').disabled=true;
+  showOverlay(type==='IN'?'⏱ Clock In save ho raha hai...':'⏱ Clock Out save ho raha hai...');
+  var b64=capturePhoto();
+  var payload={
+    action:'markAttendance',
+    type:type,
+    empId:USER.id,
+    name:USER.name,
+    dept:USER.dept,
+    phone:USER.phone,
+    latitude:gpsLat,
+    longitude:gpsLng,
+    address:addrStr,
+    image:b64
+  };
+  fetch(GAS_URL,{
+    method:'POST',
+    body:JSON.stringify(payload)
+  })
+  .then(function(r){return r.json();})
+  .then(function(res){
+    hideOverlay();
+    if(res.success){
+      showToast(res.message,'ok');
+      if(type==='IN'){
+        document.getElementById('btnIn').disabled=true;
+        document.getElementById('btnOut').disabled=false;
+        document.getElementById('sIn').textContent=res.time;
+        document.getElementById('sSts').textContent='🟢 Clocked In';
+      } else {
+        document.getElementById('sOut').textContent=res.time;
+        document.getElementById('sSts').textContent='✅ Day Complete';
+        document.getElementById('btnOut').disabled=true;
+      }
+    } else {
+      showToast(res.message||'Error aaya, dobara try karo','err');
+      if(type==='IN') document.getElementById('btnIn').disabled=false;
+      else document.getElementById('btnOut').disabled=false;
+    }
+  })
+  .catch(function(e){
+    hideOverlay();
+    showToast('Network error: '+e.message,'err');
+    if(type==='IN') document.getElementById('btnIn').disabled=false;
+    else document.getElementById('btnOut').disabled=false;
+  });
+}
+
+/* ══ HELPERS ══ */
+function showOverlay(m){document.getElementById('overlayMsg').textContent=m;document.getElementById('overlay').classList.add('show');}
+function hideOverlay(){document.getElementById('overlay').classList.remove('show');}
+var _tid;
+function showToast(m,t){var el=document.getElementById('toast');el.textContent=m;el.className='toast '+(t||'')+' show';clearTimeout(_tid);_tid=setTimeout(function(){el.classList.remove('show');},3500);}
+</script>
+</body>
+</html>
