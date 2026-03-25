@@ -197,7 +197,7 @@
 //  URL format: https://script.google.com/macros/s/XXXX/exec
 //  (NOT script.google.com/a/macros/devmani.net/...)
 // ══════════════════════════════════════════════════════════════
-var GAS_URL = 'https://script.google.com/macros/s/AKfycbzxxcjm-PRq4T_OG8Ir2GhgMe9oV5oF6FnB4vrdroPY3ZgxKfhQFMdWQlO0OoOy5nRZ/exec';
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbxhfX-l17BTPspAji3xMBvQZPnIt5R9tfklEfsjFc63u-RLwyq4QwzG_82IB5gh7EbZ/exec';
 
 /* ══ EMPLOYEE DB ══ */
 var EMP_DB={
@@ -516,63 +516,7 @@ function _nowTime(){
 
 
 
-/* Confirm save via GET status check */
-function _confirmSaved(type){
-  var url=GAS_URL+'?action=getTodayStatus&empId='+encodeURIComponent(USER.id);
-  fetch(url,{redirect:'follow'})
-    .then(function(r){return r.text();})
-    .then(function(txt){
-      hideOverlay();
-      var st; try{st=JSON.parse(txt);}catch(e){
-        // Agar parse fail — phir bhi success dikhao (data save ho gaya)
-        _applyPunchUI(type, _nowTime());
-        showToast(type==='IN'?'✅ Clock In Ho Gaya!':'✅ Clock Out Ho Gaya!','ok');
-        return;
-      }
-      if(st.status==='clocked_in'||st.status==='completed'){
-        _applyPunchUI(type, type==='IN'?st.inTime:st.outTime);
-        showToast(type==='IN'?'✅ Clock In Ho Gaya! '+st.inTime:'✅ Clock Out Ho Gaya! '+st.outTime,'ok');
-      } else {
-        // Still pending — retry once
-        setTimeout(function(){_retryConfirm(type);},3000);
-      }
-    })
-    .catch(function(){
-      hideOverlay();
-      _applyPunchUI(type, _nowTime());
-      showToast(type==='IN'?'✅ Clock In Ho Gaya!':'✅ Clock Out Ho Gaya!','ok');
-    });
-}
 
-function _retryConfirm(type){
-  var url=GAS_URL+'?action=getTodayStatus&empId='+encodeURIComponent(USER.id);
-  fetch(url,{redirect:'follow'}).then(function(r){return r.text();})
-    .then(function(txt){
-      var st; try{st=JSON.parse(txt);}catch(e){_applyPunchUI(type,_nowTime());return;}
-      _applyPunchUI(type, type==='IN'?(st.inTime||_nowTime()):(st.outTime||_nowTime()));
-      showToast(type==='IN'?'✅ Clock In Ho Gaya!':'✅ Clock Out Ho Gaya!','ok');
-    })
-    .catch(function(){_applyPunchUI(type,_nowTime());});
-}
-
-function _applyPunchUI(type, timeStr){
-  hideOverlay();
-  if(type==='IN'){
-    document.getElementById('btnIn').disabled=true;
-    document.getElementById('btnOut').disabled=false;
-    document.getElementById('sIn').textContent=timeStr||_nowTime();
-    document.getElementById('sSts').textContent='🟢 Clocked In';
-  } else {
-    document.getElementById('sOut').textContent=timeStr||_nowTime();
-    document.getElementById('sSts').textContent='✅ Day Complete';
-    document.getElementById('btnOut').disabled=true;
-  }
-}
-
-function _nowTime(){
-  var n=new Date();
-  return pad(n.getHours())+':'+pad(n.getMinutes());
-}
 
 /* ══ HELPERS ══ */
 function showOverlay(m){document.getElementById('overlayMsg').textContent=m;document.getElementById('overlay').classList.add('show');}
