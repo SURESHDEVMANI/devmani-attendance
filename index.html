@@ -190,7 +190,14 @@
 /* ══════════════════════════════════════════════════════════
    ⚙️  CONFIG — Yahan apna Apps Script URL daalo
 ══════════════════════════════════════════════════════════ */
-var GAS_URL = 'https://script.google.com/macros/s/AKfycbymwkZERHsAMwUoZSdX7pxS7TvvK4GUbBiCIh00oJ4hDcabNK5MbA3jfwfo2HfYUY6Q/exec';
+// ══════════════════════════════════════════════════════════════
+//  ⚙️  APNA GAS URL YAHAN DAALO
+//  Apps Script → Deploy → New Deployment → Web App
+//  Execute as: Me | Who has access: ANYONE (not workspace)
+//  URL format: https://script.google.com/macros/s/XXXX/exec
+//  (NOT script.google.com/a/macros/devmani.net/...)
+// ══════════════════════════════════════════════════════════════
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbyg0G6QBjGkvUIOymKnHb_7snB9I5onCeksX-iEHBRhfTqa4lw6CwNIlKov-LA84YFd/exec';
 
 /* ══ EMPLOYEE DB ══ */
 var EMP_DB={
@@ -344,13 +351,21 @@ function fetchAddr(){
     .catch(function(){addrStr=gpsLat.toFixed(5)+', '+gpsLng.toFixed(5);document.getElementById('addrTxt').textContent='📍 '+addrStr;});
 }
 
-/* ══ CHECK STATUS ══ */
+/* ══ CHECK STATUS — GET request (no CORS issue) ══ */
 function checkTodayStatus(){
-  var url=GAS_URL+'?action=getTodayStatus&empId='+encodeURIComponent(USER.id);
-  fetch(url,{redirect:'follow'})
+  if(!GAS_URL||GAS_URL==='APNA_GAS_URL_YAHAN_DAALO'){
+    showToast('⚠️ GAS URL set nahi hai — index.html mein URL daalo','err');return;
+  }
+  var url=GAS_URL+'?action=getTodayStatus&empId='+encodeURIComponent(USER.id)+'&t='+Date.now();
+  fetch(url,{method:'GET',redirect:'follow'})
     .then(function(r){return r.text();})
     .then(function(txt){
-      var st; try{st=JSON.parse(txt);}catch(e){console.warn('Status parse err',txt);return;}
+      var st;
+      try{
+        // GAS sometimes returns HTML redirect wrapper — try to extract JSON
+        var jsonMatch=txt.match(/\{.*\}/s);
+        st=JSON.parse(jsonMatch?jsonMatch[0]:txt);
+      }catch(e){console.warn('Status parse:',txt.substring(0,200));return;}
       if(st.status==='clocked_in'){
         document.getElementById('btnIn').disabled=true;
         document.getElementById('btnOut').disabled=false;
@@ -381,8 +396,16 @@ function capturePhoto(){
   return c.toDataURL('image/jpeg',0.6).replace('data:image/jpeg;base64,','');
 }
 
-/* ══ PUNCH — fetch() se Apps Script call ══ */
+/* ══ PUNCH — GitHub Pages → GAS ══
+   Strategy:
+   1. POST with no-cors (bypasses CORS, data reaches GAS)
+   2. Wait 3s then GET status to confirm saved
+   3. Photo upload separately in background
+══ */
 function punch(type){
+  if(!GAS_URL||GAS_URL==='APNA_GAS_URL_YAHAN_DAALO'){
+    showToast('⚠️ GAS URL set nahi hai!','err');return;
+  }
   if(!gpsOk){showToast('📍 GPS fix hone do...','err');return;}
   document.getElementById('btnIn').disabled=true;
   document.getElementById('btnOut').disabled=true;
@@ -402,34 +425,96 @@ function punch(type){
     imageUrl:''
   };
 
-  // ★ mode:'no-cors' → CORS block nahi hoga
-  // Data GAS tak pahunchega, response opaque aayega (that's OK)
-  fetch(GAS_URL, {
-    method: 'POST',
-    headers: {'Content-Type': 'text/plain'},
-    body: JSON.stringify(payload),
-    mode: 'no-cors',
-    redirect: 'follow'
+  // POST with no-cors → response nahi milti but data GAS tak pahuncha
+  fetch(GAS_URL,{
+    method:'POST',
+    headers:{'Content-Type':'text/plain'},
+    body:JSON.stringify(payload),
+    mode:'no-cors'
   })
   .then(function(){
-    // no-cors = response nahi milta, isliye 2s baad GET se confirm karo
-    setTimeout(function(){ _confirmSaved(type); }, 2500);
-    // Background mein photo upload
-    if(b64){
-      var pp=JSON.parse(JSON.stringify(payload));
-      pp.image=b64;
-      fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain'},
-        body:JSON.stringify(pp),mode:'no-cors',redirect:'follow'}).catch(function(){});
-    }
+    // 3 seconds baad GET se verify karo ki save hua
+    setTimeout(function(){ _verifyAndUpdate(type, b64, 0); }, 3000);
   })
-  .catch(function(e){
+  .catch(function(err){
+    console.error('POST failed:',err);
     hideOverlay();
-    console.error('Punch error:',e);
     showToast('Network error — Internet check karo','err');
-    if(type==='IN') document.getElementById('btnIn').disabled=false;
-    else document.getElementById('btnOut').disabled=false;
+    document.getElementById(type==='IN'?'btnIn':'btnOut').disabled=false;
   });
 }
+
+/* GET se confirm karo — max 3 retries */
+function _verifyAndUpdate(type, b64, attempt){
+  var url=GAS_URL+'?action=getTodayStatus&empId='+encodeURIComponent(USER.id)+'&t='+Date.now();
+  fetch(url,{method:'GET',redirect:'follow'})
+    .then(function(r){return r.text();})
+    .then(function(txt){
+      var st;
+      try{
+        var m=txt.match(/\{[\s\S]*\}/);
+        st=JSON.parse(m?m[0]:txt);
+      }catch(e){st={status:'none'};}
+
+      var saved=(type==='IN'&&(st.status==='clocked_in'||st.status==='completed'))
+             ||(type==='OUT'&&st.status==='completed');
+
+      if(saved){
+        hideOverlay();
+        _updateUI(type, type==='IN'?st.inTime:st.outTime);
+        showToast(type==='IN'?'✅ Clock In Ho Gaya! '+st.inTime:'✅ Clock Out Ho Gaya! '+st.outTime,'ok');
+        // Background photo upload
+        _uploadPhotoAsync(b64, type);
+      } else if(attempt<3){
+        // Retry after 2s
+        setTimeout(function(){ _verifyAndUpdate(type, b64, attempt+1); }, 2000);
+      } else {
+        // 3 retries baad bhi nahi mila — UI update karo aur warn karo
+        hideOverlay();
+        _updateUI(type, _nowTime());
+        showToast(type==='IN'?'✅ Clock In (verifying...)':'✅ Clock Out (verifying...)','ok');
+        _uploadPhotoAsync(b64, type);
+      }
+    })
+    .catch(function(){
+      if(attempt<3){
+        setTimeout(function(){ _verifyAndUpdate(type, b64, attempt+1); }, 2000);
+      } else {
+        hideOverlay();
+        _updateUI(type, _nowTime());
+        showToast('Saved but could not verify — sheet check karo','ok');
+      }
+    });
+}
+
+function _uploadPhotoAsync(b64, type){
+  if(!b64) return;
+  var p={action:'markAttendance',type:type,empId:USER.id,name:USER.name,
+    dept:USER.dept,phone:USER.phone,latitude:gpsLat,longitude:gpsLng,
+    address:addrStr,imageUrl:'',image:b64};
+  fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain'},
+    body:JSON.stringify(p),mode:'no-cors'}).catch(function(){});
+}
+
+function _updateUI(type, timeStr){
+  var t=timeStr||_nowTime();
+  if(type==='IN'){
+    document.getElementById('btnIn').disabled=true;
+    document.getElementById('btnOut').disabled=false;
+    document.getElementById('sIn').textContent=t;
+    document.getElementById('sSts').textContent='🟢 Clocked In';
+  } else {
+    document.getElementById('sOut').textContent=t;
+    document.getElementById('sSts').textContent='✅ Day Complete';
+    document.getElementById('btnOut').disabled=true;
+  }
+}
+
+function _nowTime(){
+  var n=new Date(); return pad(n.getHours())+':'+pad(n.getMinutes());
+}
+
+
 
 /* Confirm save via GET status check */
 function _confirmSaved(type){
